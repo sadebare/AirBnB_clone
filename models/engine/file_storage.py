@@ -1,126 +1,58 @@
-#!/usr/bin/env python3
-"""This module contains a base class called 'FileStorage' that defines
-the process that serializes and deserializes to JSON
-file_storage module manages data stored in file.json
-and manages CRUD operation
-"""
+#!/usr/bin/python3
+"""FileStorage module"""
 import json
-import importlib
-import re
+from models.base_model import BaseModel
+from models.user import User
+from models.state import State
+from models.city import City
+from models.amenity import Amenity
+from models.place import Place
+from models.review import Review
 
 
 class FileStorage:
-    """ An abstracted file storage engine
-    Private class attributes:
-        __file_path: string - path to the JSON file (ex: file.json)
-        __objects: dictionary - empty but will store all objects by
-        class name.id
-    Public instance methods:
-        all(self): returns the dictionary __objects
-        new(self, obj): sets in __objects the obj with
-        key <obj class name>.id save(self): serializes
-        __objects to the JSON file (path: __file_path)
-        reload(self): deserializes the JSON file to __objects
-        (only if the JSON file (__file_path) exists otherwise
-        , do nothing.
+    """class FileStorage
+    Attributes:
+        __filepath (str): file path to JSON file
+        __objects (dict): dictionary of objects
     """
     __file_path = 'file.json'
     __objects = {}
 
     def all(self):
-        """ returns the dictionary __objects """
-        return FileStorage.__objects
+        """all method returns dictionary of objects
+        Returns:
+            __objects - dictionary of objects
+        """
+        return self.__objects
 
     def new(self, obj):
-        """Creates a new instance of a specific class and
-        saves it into the file storage
+        """new method which adds object to __objects dict
+        Args:
+            obj (object): object to add to dictionary
         """
-        key_name = "{}.{}".format(obj.__class__.__name__, obj.id)
-        FileStorage.__objects[key_name] = obj
+        if obj:
+            key = '{}.{}'.format(type(obj).__name__, obj.id)
+            self.__objects[key] = obj
 
     def save(self):
-        """Saves the instances of all classes into a
-        .json file using the json string format
-        """
-        content = self.__serialize()
+        """save method serializes __objects to JSON file at __filepath"""
+        obj_dict = {}
+        for key, obj in self.__objects.items():
+            obj_dict[key] = obj.to_dict()
 
-        with open(FileStorage.__file_path, 'w') as file:
-            file.write(content)
+        json_str = json.dumps(obj_dict)
+
+        with open(self.__file_path, 'w', encoding='utf-8') as f:
+            f.write(json_str)
 
     def reload(self):
-        """Deserializes the JSON file to __objects (only if
-        the JSON file (__file_path) exists ; otherwise, do nothing.
-        """
-        file_data = self.__deserialize()
-
-        if not file_data:
-            return
-
-        for k, value in file_data.items():
-            class_name = value["__class__"]
-            FileStorage.__objects[k] = self.choose_class(class_name, value)
-
-    def create(self, class_name):
-        """Auxiliar function to create new instances of an specific class
-        """
-        my_model = self.choose_class(class_name)
-        my_model.save()
-        print(my_model.id)
-
-    def choose_class(self, class_name, data=None):
-        """Chooses the correct kind of class for an instance - to create
-        instances, to use the to_dict function, to save into the Json file,etc.
-        """
-        module_name = self.to_snake_case(class_name)
-        module = importlib.import_module(module_name)
-        class_ = getattr(module, class_name)
-        if data:
-            return class_(**data)
-        else:
-            return class_()
-
-    def print(self, class_name=None):
-        """ print all elements in storage and filter by class_name"""
-        print(self.filter_by_class(class_name))
-
-    def filter_by_class(self, class_name):
-        """Auxiliar function to print or show the instances of an specific
-        type of class.
-        """
-        if not class_name:
-            return self.to_list()
-
-        filtered = []
-        for k, value in self.all().items():
-            split_key = k.split('.')
-            if split_key[0] == class_name:
-                filtered.append(str(value))
-        return filtered
-
-    def to_list(self):
-        """ take a dictionary and transform this to list
-            with objects cast to str"""
-        data_list = []
-        for _, value in self.all().items():
-            data_list.append(str(value))
-        return data_list
-
-    def __serialize(self):
-        """
-        BaseModel->to_dict() -> <class 'dict'> -> JSON dump -> <class 'str'>
-        """
-        objects = {}
-        for key, obj in self.all().items():
-            objects[key] = obj.to_dict()
-
-        return str(json.dumps(objects))
-
-    def __deserialize(self):
-        "File -> str -> JSON load -> dict -> BaseModel"
-        with open(FileStorage.__file_path) as file:
-            return json.load(file)
-
-    def to_snake_case(self, text):
-        """ Transform text to snake case """
-        module_name = re.sub(r'(?<!^)(?=[A-Z])', '_', text).lower()
-        return "models.{}".format(module_name)
+        """reload method deserializes the JSON file to __objects"""
+        try:
+            with open(self.__file_path, 'r', encoding='utf-8') as f:
+                json_dict = json.load(f)
+                for obj_dict in json_dict.values():
+                    cls = obj_dict['__class__']
+                    self.new(eval('{}({})'.format(cls, '**obj_dict')))
+        except FileNotFoundError:
+            pass
